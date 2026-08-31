@@ -100,23 +100,30 @@ inside a window already sized.
 
 ## What JavaScript in wasm costs
 
-Honest numbers, measured on this package:
+Honest numbers, measured on this package. The components are built
+**ahead of time** (`enableAot`, which runs weval over the JavaScript);
+the interpreted column is what the same build costs without it:
 
-| | |
-| --- | --- |
-| component size | 13.6 MiB each |
-| startup | ~0.77 s per instance |
-| per frame, 320×240 | ~0.17 s |
-| per frame, 640×480 | ~0.59 s |
+| | AOT | interpreted |
+| --- | --- | --- |
+| component size | 21.0 MiB | 13.6 MiB |
+| in the archive, compressed | 6.2 MiB | 4.5 MiB |
+| startup | ~1.20 s | ~0.75 s |
+| per frame, 320×240 | ~0.19 s | ~0.23 s |
+| 60 frames, 320×240, end to end | 12.6 s | 14.8 s |
 
-The size is SpiderMonkey, not jsQR — every ComponentizeJS component
-carries a JavaScript engine, whatever you put in it. The speed is the
-same engine: StarlingMonkey interprets, with no JIT, and this is
-pixel-crunching code, which is the worst case for an interpreter. The
-same JavaScript under Node runs the 640×480 frame in 7.8 ms, so the
-component is roughly 100× slower than V8 and far slower than the
-equivalent Rust module would be. A four-second 640×480 clip takes
-about seventy seconds.
+AOT is the default here because frames outnumber starts in anything
+this module is for: it costs half a second of startup and 1.7 MiB of
+archive to take about 19% off every frame.
+
+Both columns are slow, and that is the honest headline. The size is
+SpiderMonkey, not jsQR — every ComponentizeJS component carries a
+JavaScript engine, whatever you put in it. The speed is the same
+engine: StarlingMonkey has no JIT, weval or not, and this is
+pixel-crunching code, the worst case for it. The same JavaScript under
+Node runs a 640×480 frame in 7.8 ms against ~0.59 s interpreted here,
+so the component is roughly two orders slower than V8 and far slower
+than the equivalent Rust module.
 
 Take that as the shape of the road, not a verdict: JavaScript reaches
 the world, the toolchain is three lines of build script, and for a
@@ -146,11 +153,12 @@ sidecar to describe both, and runs the unit tests. The tests need no
 wasm and no ffmpeg: they encode QR codes in memory and run the
 detection core over the pixels.
 
-`disableFeatures: ['http', 'fetch-event', 'random', 'clocks']` in
-`build.mjs` is load-bearing. Without it StarlingMonkey imports
-`wasi:http` for `fetch`, the sidecar reports the module as needing the
-`http` capability, and the package would have to declare a grant it
-never uses.
+Two settings in `build.mjs` carry weight. `disableFeatures: ['http',
+'fetch-event', 'random', 'clocks']` is load-bearing: without it
+StarlingMonkey imports `wasi:http` for `fetch`, the sidecar reports the
+module as needing the `http` capability, and the package would have to
+declare a grant it never uses. `enableAot` is the ahead-of-time build
+above; turning it off costs frames and buys back size and startup.
 
 ## License
 

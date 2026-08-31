@@ -13,6 +13,11 @@ import { stageWit } from './tools/stage-wit.mjs';
 // off, and the module would then need capabilities it never uses.
 const DISABLED = ['http', 'fetch-event', 'random', 'clocks'];
 
+// weval compiles the JavaScript ahead of time instead of leaving every frame
+// to the interpreter: ~19% off each frame, paid for in a bigger component and
+// a slower start. Frames outnumber starts in anything this module is for.
+const AOT = true;
+
 // componentize-js takes one source file, so jsQR is bundled into it.
 async function bundle(name) {
   const out = join(OUT_DIR, `${name}.bundle.js`);
@@ -36,6 +41,7 @@ async function componentizeExport(name) {
     witPath: WIT_DIR,
     worldName: WORLD,
     disableFeatures: DISABLED,
+    enableAot: AOT,
   });
   const wasm = join(OUT_DIR, `${name}.wasm`);
   writeFileSync(wasm, component);
