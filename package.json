@@ -1,0 +1,23 @@
+{
+  "name": "ffrwd-package-jsqr",
+  "version": "0.1.0",
+  "private": true,
+  "description": "QR detection as an ffrwd wasm module, written in JavaScript.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "wit": "node tools/stage-wit.mjs",
+    "build": "node build.mjs",
+    "describe": "node tools/describe.mjs",
+    "test": "node --test",
+    "check": "npm run build && npm run describe && npm test"
+  },
+  "dependencies": {
+    "jsqr": "1.4.0"
+  },
+  "devDependencies": {
+    "@bytecodealliance/componentize-js": "0.22.0",
+    "esbuild": "^0.25.0",
+    "qrcode": "^1.5.4"
+  }
+}

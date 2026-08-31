@@ -1,0 +1,16 @@
+# The JavaScript the components were built from, and what built them. The
+# archive carries the two wasm files the lib SQL names, not the toolchain.
+node_modules/
+build/*.bundle.js
+tools/
+tests/
+build.mjs
+package.json
+package-lock.json
+
+# The wit the build stages from the ffrwd/wasm package, which is that
+# package's to ship and not this one's.
+wit/
+
+# Local development state, not package content.
+ffrwd.lock
