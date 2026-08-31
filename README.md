@@ -128,7 +128,15 @@ than the equivalent Rust module.
 Take that as the shape of the road, not a verdict: JavaScript reaches
 the world, the toolchain is three lines of build script, and for a
 package whose value is a decoder nobody wants to port, the arithmetic
-can still work out. Reach for Rust when frames are the product.
+can still work out.
+
+For this decoder it does not.
+[`ffrwd/rsqr`](https://github.com/imbcmdth/ffrwd-package-rsqr) is the
+same algorithm in Rust, and on the same clip it runs 13× faster at
+320×240 and 25× at 640×480, in a component sixty times smaller — with
+`scan` output byte-identical to this package's. Reach for that one;
+this package is here to show what the JavaScript road costs, measured
+rather than guessed.
 
 ## Two codes at once
 
