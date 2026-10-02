@@ -10,16 +10,22 @@ import { GAP, payloads, row, Sightings } from '../src/detect.js';
 const found = (texts) => texts.map((text) => ({ text, box: { x: 0, y: 0, w: 1, h: 1 } }));
 
 test('a row writes a whole second without a fraction', () => {
-  assert.equal(row(1, 'ffrwd'), '{"start_t":1,"text":"ffrwd"}');
-  assert.equal(row(0, 'ffrwd'), '{"start_t":0,"text":"ffrwd"}');
+  assert.equal(row({ startT: 1, id: 3 }, 'ffrwd'), '{"start_t":1,"id":3,"text":"ffrwd"}');
+  assert.equal(row({ startT: 0, id: 3 }, 'ffrwd'), '{"start_t":0,"id":3,"text":"ffrwd"}');
 });
 
 test('a row keeps every digit of a time that needs them', () => {
-  assert.equal(row(1.9666666666666663, 'a'), '{"start_t":1.9666666666666663,"text":"a"}');
+  assert.equal(
+    row({ startT: 1.9666666666666663, id: 3 }, 'a'),
+    '{"start_t":1.9666666666666663,"id":3,"text":"a"}',
+  );
 });
 
 test('a payload with JSON in it is escaped into the row', () => {
-  assert.equal(row(0, 'he said "hi"\n'), String.raw`{"start_t":0,"text":"he said \"hi\"\n"}`);
+  assert.equal(
+    row({ startT: 0, id: 3 }, 'he said "hi"\n'),
+    String.raw`{"start_t":0,"id":3,"text":"he said \"hi\"\n"}`,
+  );
 });
 
 test('a frame names each payload once, in sorted order', () => {
@@ -34,36 +40,62 @@ test('a frame with no code names nothing', () => {
   assert.deepEqual(payloads([]), []);
 });
 
-// The start, in frames, each sighting of one payload is named by over the
-// frames `seen` lists, frame k at k / 30 s.
-function starts(count, seen) {
+// The sighting one payload is named by on each frame `seen` lists, frame k
+// at k / 30 s, as [start frame, id].
+function named(count, seen) {
   const sightings = new Sightings();
-  const named = [];
+  const names = [];
   for (let k = 0; k < count; k++) {
     sightings.tick(k / 30);
-    if (seen.includes(k)) named.push(Math.round(sightings.see('a') * 30));
+    if (seen.includes(k)) {
+      const { startT, id } = sightings.see('a');
+      names.push([Math.round(startT * 30), id]);
+    }
   }
-  return named;
+  return names;
 }
 
 test('a sighting is named by its first frame while it lasts', () => {
-  assert.deepEqual(starts(8, [2, 3, 4, 5]), [2, 2, 2, 2]);
+  assert.deepEqual(named(8, [2, 3, 4, 5]), [
+    [2, 0],
+    [2, 0],
+    [2, 0],
+    [2, 0],
+  ]);
 });
 
 test('a gap of GAP frames is still the same sighting', () => {
   assert.equal(GAP, 14);
-  assert.deepEqual(starts(40, [5, 20]), [5, 5]);
+  assert.deepEqual(named(40, [5, 20]), [
+    [5, 0],
+    [5, 0],
+  ]);
 });
 
-test('a longer gap starts a new sighting', () => {
-  assert.deepEqual(starts(40, [5, 21]), [5, 21]);
+test('a longer gap starts a new sighting, with a new id', () => {
+  assert.deepEqual(named(40, [5, 21]), [
+    [5, 0],
+    [21, 1],
+  ]);
 });
 
 test('two payloads have sightings of their own', () => {
   const sightings = new Sightings();
   sightings.tick(0);
-  assert.equal(sightings.see('a'), 0);
+  assert.deepEqual(sightings.see('a'), { startT: 0, id: 0 });
   sightings.tick(1);
-  assert.equal(sightings.see('a'), 0);
-  assert.equal(sightings.see('b'), 1);
+  assert.deepEqual(sightings.see('a'), { startT: 0, id: 0 });
+  assert.deepEqual(sightings.see('b'), { startT: 1, id: 1 });
+});
+
+test('two payloads first seen together are told apart by id', () => {
+  const sightings = new Sightings();
+  sightings.tick(0);
+  assert.deepEqual(
+    ['a', 'b'].map((text) => sightings.see(text)),
+    [
+      { startT: 0, id: 0 },
+      { startT: 0, id: 1 },
+    ],
+  );
 });

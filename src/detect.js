@@ -184,11 +184,11 @@ export function payloads(codes) {
   return [...new Set(codes.map((code) => code.text))].sort();
 }
 
-/** The row `scan` writes for a code in view: the time its sighting began,
- * which names the sighting, and its payload. `ffrwd/rsqr` writes the same
- * bytes. */
-export function row(startT, text) {
-  return JSON.stringify({ start_t: startT, text });
+/** The row `scan` writes for a code in view: the time its sighting began
+ * and how many sightings began before it, which name the sighting, and its
+ * payload. `ffrwd/rsqr` writes the same bytes. */
+export function row({ startT, id }, text) {
+  return JSON.stringify({ start_t: startT, id, text });
 }
 
 /** Which sighting each code in view belongs to, named by the time it began.
@@ -204,6 +204,7 @@ export class Sightings {
     this.open = new Map();
     this.frame = -1;
     this.time = 0;
+    this.started = 0;
   }
 
   tick(time) {
@@ -214,14 +215,16 @@ export class Sightings {
     }
   }
 
-  /** The start of the sighting `text` belongs to, begun here if none is open. */
+  /** The sighting `text` belongs to, `{ startT, id }`, begun here if none is
+   * open: its start, and how many sightings began before it. */
   see(text) {
     let open = this.open.get(text);
     if (open === undefined) {
-      open = { startT: this.time, seen: this.frame };
+      open = { sighting: { startT: this.time, id: this.started }, seen: this.frame };
+      this.started += 1;
       this.open.set(text, open);
     }
     open.seen = this.frame;
-    return open.startT;
+    return open.sighting;
   }
 }

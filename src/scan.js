@@ -5,8 +5,8 @@ import { detectCodes, payloads, row, Sightings } from './detect.js';
 import { node as makeNode, pictureClock, rowsOutput } from './node.js';
 
 const ROW_SCHEMA =
-  '{"type":"object","properties":{"start_t":{"type":"number"},"text":{"type":"string"}},' +
-  '"required":["start_t","text"],"additionalProperties":false}';
+  '{"type":"object","properties":{"start_t":{"type":"number"},"id":{"type":"integer"},' +
+  '"text":{"type":"string"}},"required":["start_t","id","text"],"additionalProperties":false}';
 
 export const node = makeNode({
   name: 'scan',

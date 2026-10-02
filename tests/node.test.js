@@ -70,13 +70,13 @@ test('scan names every row of a sighting by its first frame, and sorts a frame',
   const seen = (k) => (k === 1 ? [B] : k <= 3 ? [B, A] : []);
   const written = [];
   for (let k = 1; k < 6; k++) written.push(...rows(scan.process(tick(k, [picture(seen(k))]))));
-  const at = (k, text) => JSON.stringify({ start_t: k / 30, text });
+  const at = (k, id, text) => JSON.stringify({ start_t: k / 30, id, text });
   assert.deepEqual(written, [
-    [1, at(1, 'https://want.video')],
-    [2, at(2, 'ffrwd')],
-    [2, at(1, 'https://want.video')],
-    [3, at(2, 'ffrwd')],
-    [3, at(1, 'https://want.video')],
+    [1, at(1, 0, 'https://want.video')],
+    [2, at(2, 1, 'ffrwd')],
+    [2, at(1, 0, 'https://want.video')],
+    [3, at(2, 1, 'ffrwd')],
+    [3, at(1, 0, 'https://want.video')],
   ]);
 });
 
