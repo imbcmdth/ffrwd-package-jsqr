@@ -21,6 +21,9 @@ function picture(codes) {
   return rgba;
 }
 
+// What `shape` is told: the picture on `v`, at 30 frames a second.
+const BINDINGS = [{ input: 'v', streams: [{ rate: { num: 30, den: 1 } }] }];
+
 function bound() {
   return [
     {
@@ -30,6 +33,7 @@ function bound() {
       format: { tag: 'video', val: { width: WIDTH, height: HEIGHT, pixFmt: 'rgba' } },
       rendition: {},
       decodeDelay: 0,
+      hint: { rate: { num: 30, den: 1 } },
     },
   ];
 }
@@ -56,7 +60,7 @@ function rows(emitted) {
 }
 
 test('scan writes rows alone, a frame at a time', () => {
-  const shape = scan.shape('', ['v']);
+  const shape = scan.shape('', BINDINGS);
   assert.deepEqual(
     shape.outputs.map((output) => output.name),
     ['codes'],
@@ -81,11 +85,11 @@ test('scan names every row of a sighting by its first frame, and sorts a frame',
 });
 
 test('scan refuses a param it does not take', () => {
-  assert.throws(() => scan.shape('{"window":3}', ['v']), /takes no parameters/);
+  assert.throws(() => scan.shape('{"window":3}', BINDINGS), /takes no parameters/);
 });
 
 test('mosaic_codes follows its picture over a sliding window', () => {
-  const shape = mosaicCodes.shape('', ['v']);
+  const shape = mosaicCodes.shape('', BINDINGS);
   assert.deepEqual([shape.inputs[0].window, shape.inputs[0].stride], [WINDOW, STRIDE]);
   assert.deepEqual(shape.outputs[0].format, { tag: 'like', val: { port: 'v' } });
   assert.equal(shape.pure && shape.oneToOne, true);

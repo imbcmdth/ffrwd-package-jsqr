@@ -4,7 +4,7 @@ QR codes in video: read them into a caption track, or mosaic them out
 of the picture. ffmpeg has no barcode filter of any kind, so this is a
 thing the compiler could not do before the package existed.
 
-Requires ffrwd 0.29.
+Requires ffrwd 0.29, whose `ffrwd/wasm` is 0.19.1.
 
 It is also the demonstration that an ffrwd module can be written in
 **JavaScript**. The two wasm components here are

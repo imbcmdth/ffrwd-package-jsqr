@@ -1,4 +1,4 @@
-// The `node` export of `ffrwd:av/node@0.19.0`, made the way both modules need
+// The `node` export of `ffrwd:av/node@0.19.1`, made the way both modules need
 // it: no params, one rgba picture on a port `v` that is the clock, and rows or
 // pictures out. What `ffrwd-node` does for a Rust module, cut to what `scan`
 // and `mosaic_codes` use.
@@ -108,8 +108,8 @@ export function node({ name, version, shape, open, process }) {
 
     shape(params, bound) {
       readParams(params);
-      for (const port of bound) {
-        if (port !== 'v') throw `${name} has no input '${port}'; it reads 'v'`;
+      for (const { input } of bound) {
+        if (input !== 'v') throw `${name} has no input '${input}'; it reads 'v'`;
       }
       return {
         clock: { tag: 'input', val: 'v' },
