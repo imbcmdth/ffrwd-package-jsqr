@@ -1,6 +1,6 @@
 {
   "name": "ffrwd-package-jsqr",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "QR detection as an ffrwd wasm module, written in JavaScript.",
   "license": "Apache-2.0",

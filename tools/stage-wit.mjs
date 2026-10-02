@@ -10,14 +10,12 @@ import { WIT_DIR } from './config.mjs';
 export function stageWit() {
   let installed;
   try {
-    installed = execFileSync('ffrwd', ['path', '-g', 'ffrwd/wasm'], {
+    installed = execFileSync('ffrwd', ['path', 'ffrwd/wasm'], {
       encoding: 'utf8',
       shell: process.platform === 'win32',
     }).trim();
   } catch (error) {
-    throw new Error(
-      `cannot locate ffrwd/wasm: ${error.message}\nrun: ffrwd install -g ffrwd/wasm`,
-    );
+    throw new Error(`cannot locate ffrwd/wasm: ${error.message}\nrun: ffrwd install`);
   }
   mkdirSync(WIT_DIR, { recursive: true });
   copyFileSync(join(installed, 'wit', 'av.wit'), join(WIT_DIR, 'av.wit'));

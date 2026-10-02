@@ -23,7 +23,7 @@ jobs:
       - name: Install ffrwd and the wit package
         run: |
           pip install ffrwd ffrwd-wasm
-          ffrwd install -g ffrwd/wasm
+          ffrwd install
       - name: Install dependencies
         run: npm ci
       - name: Build the components

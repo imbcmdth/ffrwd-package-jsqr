@@ -1,6 +1,6 @@
 // The detection core, shared by both exports and free of any wasm binding:
 // the QR lookup over rgba pixels, the mosaic that redacts a code, and the
-// runs that turn per-frame sightings into cues.
+// sightings `scan` names its rows by.
 
 import jsQR from 'jsqr';
 
@@ -8,20 +8,22 @@ import jsQR from 'jsqr';
 // so a frame is handed to the decoder without being converted at all.
 export const CHANNELS = 4;
 
-// How many frames one call sees, and how many it consumes. The host reads
-// these off `describe` BEFORE `init`, and never asks again - so this is the
-// module's own constant and cannot be a parameter of the SQL call. 15 frames
-// is half a second at 30fps: long enough to carry a code back over the frames
-// the decoder missed it in, short enough that the look-ahead stays cheap.
+// How many frames `mosaic_codes` sees in one call: a frame is redacted by
+// every code found in it or in the 14 frames after it, so a code is covered
+// from before the decoder first read it. 15 frames is half a second at 30fps:
+// long enough to cover the frames the decoder missed a code in, short enough
+// that the look-ahead stays cheap.
 export const WINDOW = 15;
 export const STRIDE = 1;
+
+// How many frames in a row a code may go unread and still be the same
+// sighting to `scan`, which is the gap the window above heals for
+// `mosaic_codes`: the two exports agree on what one appearance is.
+export const GAP = WINDOW - 1;
 
 // How many codes one frame is searched for. Each found code is painted out
 // before the next pass, so the cost is one pass per code plus one that fails.
 const MAX_CODES_PER_FRAME = 8;
-
-// The frame interval assumed until two frames have arrived.
-const ASSUMED_INTERVAL = 1 / 30;
 
 /** The axis-aligned box around a code's four corners, clipped to the frame. */
 export function boundingBox(location, width, height) {
@@ -156,6 +158,12 @@ export class DetectionCache {
     this.codes = new Map();
   }
 
+  /** Whether this timestamp's codes are held, so `codesFor` would answer
+   * without reading the frame. */
+  holds(pts) {
+    return this.codes.has(pts);
+  }
+
   codesFor(pts, frame, width, height) {
     const found = this.codes.get(pts);
     if (found !== undefined) return found;
@@ -170,63 +178,50 @@ export class DetectionCache {
   }
 }
 
-/** The runs a code makes across the windows it is credited to.
+/** Each payload one frame shows, once, whatever order the decoder met them
+ * in: sorted, so two decoders reading the same frame name them alike. */
+export function payloads(codes) {
+  return [...new Set(codes.map((code) => code.text))].sort();
+}
+
+/** The row `scan` writes for a code in view: the time its sighting began,
+ * which names the sighting, and its payload. `ffrwd/rsqr` writes the same
+ * bytes. */
+export function row(startT, text) {
+  return JSON.stringify({ start_t: startT, text });
+}
+
+/** Which sighting each code in view belongs to, named by the time it began.
  *
- * A window credits the frame it heads with every code found anywhere in it,
- * so a code the decoder only catches late is carried back over the frames
- * before it. A run is the stretch of frames credited with one payload without
- * a break, which heals any gap the window can span, and it closes into one
- * cue: the first frame credited, through the last frame the code was really
- * seen in.
+ * `tick` once a frame, then `see` each payload the frame shows. A sighting
+ * ends when its payload goes unread for more than `gap` frames in a row, and
+ * the next read starts a new one: the run table `ffrwd-node`'s `Spans` keeps
+ * for a Rust module.
  */
-export class CodeRuns {
-  constructor() {
-    this.runs = new Map();
-    this.interval = ASSUMED_INTERVAL;
-    this.previousTime = null;
+export class Sightings {
+  constructor(gap = GAP) {
+    this.gap = gap;
+    this.open = new Map();
+    this.frame = -1;
+    this.time = 0;
   }
 
-  /** One frame's credit. `sightings` maps payload to its last sighting's time.
-   *
-   * Returns the cues of the runs that ended before this frame.
-   */
-  credit(time, sightings) {
-    if (this.previousTime !== null && time > this.previousTime) {
-      this.interval = time - this.previousTime;
+  tick(time) {
+    this.frame += 1;
+    this.time = time;
+    for (const [text, open] of this.open) {
+      if (this.frame - open.seen - 1 > this.gap) this.open.delete(text);
     }
-    this.previousTime = time;
-
-    for (const [text, lastSeen] of sightings) {
-      const run = this.runs.get(text);
-      if (run) {
-        run.lastTime = Math.max(run.lastTime, lastSeen);
-      } else {
-        this.runs.set(text, { startTime: time, lastTime: lastSeen });
-      }
-    }
-
-    const cues = [];
-    for (const [text, run] of this.runs) {
-      if (sightings.has(text)) continue;
-      cues.push(this.cue(text, run));
-      this.runs.delete(text);
-    }
-    return cues;
   }
 
-  /** The cues of every run still open, which then close. */
-  flush() {
-    const cues = [];
-    for (const [text, run] of this.runs) cues.push(this.cue(text, run));
-    this.runs.clear();
-    return cues;
-  }
-
-  // A run as one cue. A code caught in a single frame would span nothing, so
-  // such a cue is given one frame's width.
-  cue(text, run) {
-    const start = run.startTime;
-    const end = run.lastTime > start ? run.lastTime : start + this.interval;
-    return { text, start_t: start, end_t: end };
+  /** The start of the sighting `text` belongs to, begun here if none is open. */
+  see(text) {
+    let open = this.open.get(text);
+    if (open === undefined) {
+      open = { startT: this.time, seen: this.frame };
+      this.open.set(text, open);
+    }
+    open.seen = this.frame;
+    return open.startT;
   }
 }

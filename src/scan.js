@@ -1,56 +1,32 @@
-// `scan`: the picture untouched, every QR code beside it as a cue row.
+// `scan`: a row per frame for each QR code in view, every row of one sighting
+// naming it by the time it began.
 
-import { heads, Instance, metaFor } from './instance.js';
+import { detectCodes, payloads, row, Sightings } from './detect.js';
+import { node as makeNode, pictureClock, rowsOutput } from './node.js';
 
-const NAME = 'scan';
-const VERSION = '0.1.0';
+const ROW_SCHEMA =
+  '{"type":"object","properties":{"start_t":{"type":"number"},"text":{"type":"string"}},' +
+  '"required":["start_t","text"],"additionalProperties":false}';
 
-const ROWS_SCHEMA =
-  '{"type":"object","properties":{"text":{"type":"string"},"start_t":{"type":"number"},' +
-  '"end_t":{"type":"number"}},"required":["text","start_t","end_t"],' +
-  '"additionalProperties":false}';
-
-const instance = new Instance(NAME);
-
-export const windowFilter = {
-  describe() {
-    return metaFor({
-      name: NAME,
-      version: VERSION,
-      rowsSchema: ROWS_SCHEMA,
-      // A run outlives the window it started in, so a call answers out of
-      // what earlier calls left behind.
-      pure: false,
-    });
+export const node = makeNode({
+  name: 'scan',
+  version: '0.2.0',
+  shape: {
+    inputs: [pictureClock()],
+    outputs: [rowsOutput('codes', ROW_SCHEMA)],
+    // Which sighting a code belongs to outlives the frame it is read on.
+    pure: false,
+    oneToOne: false,
   },
-
-  init(format, streamInfo, params) {
-    instance.open(format, streamInfo, params);
-  },
-
-  setParams(params) {
-    instance.readParams(params);
-  },
-
-  process(frames, trailing, last) {
-    const out = [];
-    for (const head of heads(frames, last)) {
-      const { sightings } = instance.read(head.window);
-      const cues = instance.runs.credit(instance.seconds(head.frame.pts), sightings);
-      out.push({
-        pts: head.frame.pts,
-        frame: { tag: 'same' },
-        rows: cues.map((cue) => JSON.stringify(cue)),
-      });
+  open: (v) => ({ v, sightings: new Sightings() }),
+  process({ v, sightings }, tick, out) {
+    const frame = tick.frames(v.id).at(-1);
+    if (frame === undefined) return;
+    const { num, den } = tick.timeBase();
+    sightings.tick((Number(frame.pts) * num) / den);
+    const pixels = tick.fetch(v.id, frame.index);
+    for (const text of payloads(detectCodes(pixels, v.width, v.height))) {
+      out.message('codes', frame.pts, row(sightings.see(text), text));
     }
-    if (!last) return { frames: out, trailing: [] };
-
-    // Every frame has left, so a code still on screen closes here.
-    const closing = instance.runs.flush().map((cue) => JSON.stringify(cue));
-    if (out.length > 0) {
-      out[out.length - 1].rows.push(...closing);
-      return { frames: out, trailing: [] };
-    }
-    return { frames: out, trailing: closing };
   },
-};
+});

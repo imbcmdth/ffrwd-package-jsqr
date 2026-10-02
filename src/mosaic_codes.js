@@ -1,45 +1,36 @@
-// `mosaic_codes`: the picture with every QR code pixelated, no rows.
+// `mosaic_codes`: the picture with every QR code pixelated, redacted by the
+// codes found in it and in the frames after it.
 
-import { mosaicBox } from './detect.js';
-import { heads, Instance, metaFor } from './instance.js';
+import { mosaicBox, STRIDE, WINDOW } from './detect.js';
+import { Instance } from './instance.js';
+import { likeOutput, node as makeNode, pictureClock } from './node.js';
 
-const NAME = 'mosaic_codes';
-const VERSION = '0.1.0';
-
-const instance = new Instance(NAME);
-
-export const windowFilter = {
-  describe() {
-    return metaFor({
-      name: NAME,
-      version: VERSION,
-      rowsSchema: '',
-      // Each frame is redacted out of its own window and nothing else, so a
-      // call answers out of what it was handed.
-      pure: true,
-    });
+export const node = makeNode({
+  name: 'mosaic_codes',
+  version: '0.2.0',
+  shape: {
+    inputs: [pictureClock(WINDOW, STRIDE)],
+    outputs: [likeOutput('v')],
+    // The decode cache only saves work; each frame is redacted out of its own
+    // window.
+    pure: true,
+    oneToOne: true,
   },
-
-  init(format, streamInfo, params) {
-    instance.open(format, streamInfo, params);
-  },
-
-  setParams(params) {
-    instance.readParams(params);
-  },
-
-  process(frames, trailing, last) {
-    const out = [];
-    for (const head of heads(frames, last)) {
-      const { boxes } = instance.read(head.window);
-      if (boxes.length === 0) {
-        out.push({ pts: head.frame.pts, frame: { tag: 'same' }, rows: [] });
-        continue;
-      }
-      const redacted = head.frame.frame.slice();
-      for (const box of boxes) mosaicBox(redacted, instance.width, instance.height, box);
-      out.push({ pts: head.frame.pts, frame: { tag: 'new', val: redacted }, rows: [] });
+  open: (v) => ({ v, instance: new Instance(v.width, v.height) }),
+  process({ v, instance }, tick, out) {
+    const window = tick.frames(v.id);
+    const head = window[0];
+    if (head === undefined) return;
+    const boxes = instance.boxes(
+      window.map((frame) => frame.pts),
+      (i) => tick.fetch(v.id, window[i].index),
+    );
+    if (boxes.length === 0) {
+      out.pass('v', v.id, head);
+      return;
     }
-    return { frames: out, trailing: [] };
+    const redacted = tick.fetch(v.id, head.index);
+    for (const box of boxes) mosaicBox(redacted, v.width, v.height, box);
+    out.frame('v', head, redacted);
   },
-};
+});

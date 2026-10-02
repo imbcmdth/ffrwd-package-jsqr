@@ -1,12 +1,11 @@
 -- The reading export, hosted as the wasm module the package ships.
 --
--- `scan` returns the picture untouched with one cue per QR code beside it:
--- the decoded payload as the cue's text, and the span the code was on screen
--- for. The module reads 15 frames at a time and credits the first of them
--- with every code found anywhere in the window, so the flicker a per-frame
--- decoder produces closes up. That window is the module's own constant - the
--- host settles it before the call is opened - so there is nothing here to
--- pass.
+-- `scan` returns a row per frame for each QR code in view: the decoded
+-- payload as `text`, and as `start_t` the time this sighting of the code
+-- began, which every row of one sighting carries. A code the decoder misses
+-- for up to 14 frames in a row is still the same sighting, so the flicker a
+-- per-frame decoder produces stays inside it. `ffrwd.merge_spans` turns the
+-- rows into one cue per sighting.
 CREATE FUNCTION scan(v video_stream)
-RETURNS STRUCT(v video_stream, codes cue[])
+RETURNS STRUCT(start_t number, text text)[]
   AS 'build/scan.wasm', 'scan' LANGUAGE wasm;

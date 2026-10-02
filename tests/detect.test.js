@@ -1,55 +1,13 @@
-// Detection against codes made here: a QR encoder writes the matrix, this
-// file paints it into rgba pixels, and the module's own core reads it back.
-// No binary fixture, and the round trip is what proves the decoder runs.
+// Detection against codes made here: a QR encoder writes the matrix,
+// paint.js paints it into rgba pixels, and the module's own core reads it
+// back. No binary fixture, and the round trip is what proves the decoder runs.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import QRCode from 'qrcode';
-
-import { CHANNELS, DetectionCache, detectCodes, mosaicBox } from '../src/detect.js';
-
-const SCALE = 6;
-const QUIET = 4;
-
-// One code's matrix as a square of rgba pixels, dark modules on white, with
-// the quiet zone a decoder needs around it.
-function render(text, scale = SCALE) {
-  const qr = QRCode.create(text, { errorCorrectionLevel: 'M' });
-  const modules = qr.modules.size;
-  const side = (modules + QUIET * 2) * scale;
-  const rgba = white(side, side);
-  for (let row = 0; row < modules; row++) {
-    for (let column = 0; column < modules; column++) {
-      if (!qr.modules.get(row, column)) continue;
-      const x0 = (column + QUIET) * scale;
-      const y0 = (row + QUIET) * scale;
-      for (let y = y0; y < y0 + scale; y++) {
-        for (let x = x0; x < x0 + scale; x++) {
-          const i = (y * side + x) * CHANNELS;
-          rgba[i] = 0;
-          rgba[i + 1] = 0;
-          rgba[i + 2] = 0;
-        }
-      }
-    }
-  }
-  return { rgba, width: side, height: side };
-}
-
-function white(width, height) {
-  const rgba = new Uint8Array(width * height * CHANNELS).fill(255);
-  return rgba;
-}
-
-// Pastes one rendered code into a larger frame at (x, y).
-function paste(frame, width, code, x, y) {
-  for (let row = 0; row < code.height; row++) {
-    const from = row * code.width * CHANNELS;
-    const to = ((y + row) * width + x) * CHANNELS;
-    frame.set(code.rgba.subarray(from, from + code.width * CHANNELS), to);
-  }
-}
+import { DetectionCache, detectCodes, mosaicBox } from '../src/detect.js';
+import { Instance } from '../src/instance.js';
+import { paste, QUIET, render, SCALE, white } from './paint.js';
 
 test('a rendered code decodes back to its own payload', () => {
   const code = render('ffrwd');
@@ -137,4 +95,19 @@ test('a timestamp that has left the window is dropped', () => {
   cache.codesFor(2n, blank, 60, 60);
   cache.codesFor(3n, blank, 60, 60);
   assert.notEqual(cache.codesFor(1n, blank, 60, 60), first);
+});
+
+test('a window read fetches only the timestamps not yet decoded', () => {
+  const code = render('ffrwd');
+  const instance = new Instance(code.width, code.height);
+  instance.boxes([0n], () => code.rgba);
+  // The next window holds pts 0 and 1; only pts 1 is fetched.
+  const fetched = [];
+  const boxes = instance.boxes([0n, 1n], (i) => {
+    fetched.push(i);
+    return code.rgba;
+  });
+  assert.deepEqual(fetched, [1]);
+  // Both frames still count, and the one box they share is listed once.
+  assert.equal(boxes.length, 1);
 });
